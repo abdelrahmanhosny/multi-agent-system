@@ -21,15 +21,13 @@ import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.json.*;
 /**
  *
  * @author Abdelrahman
  */
 public class BankBranchAgent extends Agent{
-    private String manifestFile = "C:\\Users\\Abdelrahman\\Downloads\\b1.json";
+    private String manifestFile;
     private JSONObject manifest;
     
     private String branchID;
@@ -54,10 +52,8 @@ public class BankBranchAgent extends Agent{
             services = manifest.getJSONArray("services");
             desks = manifest.getJSONArray("desks");
         } catch (FileNotFoundException ex) {
-            Logger.getLogger(BankBranchAgent.class.getName()).log(Level.SEVERE, null, ex);
             return false;
         } catch (IOException ex) {
-            Logger.getLogger(BankBranchAgent.class.getName()).log(Level.SEVERE, null, ex);
             return false;
         }
         return true;
@@ -69,14 +65,14 @@ public class BankBranchAgent extends Agent{
         Object[] args = getArguments();
         if (args != null && args.length > 0) {
             manifestFile = (String) args[0];
+            if(loadManifest()){
+                System.out.println("Hello! Branch " + branchID + " is ready.");
+            }else {
+                System.err.println("Manifest file error!");
+            }
         } else {
             System.err.println("Bank branch manifest path is not passed!");
             doDelete();
-        }
-        if(loadManifest()){
-            System.out.println("Hello! Branch " + branchID + " is ready.");
-        }else {
-            System.err.println("Manifest file error!");
         }
         
         // register to the recommender agent
