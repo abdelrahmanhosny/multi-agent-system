@@ -21,23 +21,66 @@ import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.json.*;
 /**
  *
  * @author Abdelrahman
  */
 public class BankBranchAgent extends Agent{
+    private class Desk {
+        private final Calendar calendar = Calendar.getInstance();
+        private String deskID;
+        private float cost; // in $
+        private int averageProcessingTime; // in minutes
+        private Timestamp customerArrivalTime;
+
+        public Desk(String deskID, float cost, int averageProcessingTime) {
+            this.deskID = deskID;
+            this.cost = cost;
+            this.averageProcessingTime = averageProcessingTime;
+        }
+
+        @Override
+        public String toString() {
+            return "Desk{" + "deskID=" + deskID + ", cost=" + cost + ", averageProcessingTime=" + averageProcessingTime + '}';
+        }
+
+        public float getCost() {
+            return cost;
+        }
+        
+        // to check if this desk is currently free or not.
+        public boolean isFreeNow(){
+            return true;
+        }
+        
+        // if the desk is not free, return when it will finish handling the current client
+        public Timestamp getCurrentFinishTime(){
+            return null;
+        }
+        
+        // assign a client to this desk and get the finish time
+        public Timestamp assign(){
+            return null;
+        }
+    }
     private String manifestFile;
-    private JSONObject manifest;
+    private String logFile;
     
     private String branchID;
     private String branchSize;
     private JSONArray services;
-    private JSONArray desks;
+    private ArrayList<Desk> availableDesks;
     
     private boolean loadManifest(){
+        BufferedReader br = null;
         try {
-            BufferedReader br = new BufferedReader(new FileReader(manifestFile));
+            br = new BufferedReader(new FileReader(manifestFile));
             StringBuilder sb = new StringBuilder();
             String line = br.readLine();
             while(line != null){
@@ -46,17 +89,64 @@ public class BankBranchAgent extends Agent{
                 line = br.readLine();
             }
             String jsonString = sb.toString();
-            manifest = new JSONObject(jsonString);
+            JSONObject manifest = new JSONObject(jsonString);
             branchID = manifest.getString("branchID");
             branchSize = manifest.getString("branchSize");
             services = manifest.getJSONArray("services");
-            desks = manifest.getJSONArray("desks");
-        } catch (FileNotFoundException ex) {
+            
+            JSONArray desks = manifest.getJSONArray("desks");
+            availableDesks = new ArrayList<>();
+            for(int i = 0;i<desks.length(); i++){
+                JSONObject deskType = (JSONObject) desks.get(i);
+                int numberOfDesks = Integer.parseInt(deskType.getString("numderOfDesks"));
+                for(int j = 0; j< numberOfDesks; j++){
+                    Desk temp = new Desk(deskType.getString("deskID"), Float.parseFloat(deskType.getString("costPerDesk")) , Integer.parseInt(deskType.getString("averageProcessingTime")));
+                    availableDesks.add(temp);
+                }
+            }
+            
+        } catch (Exception ex) {
             return false;
-        } catch (IOException ex) {
-            return false;
+        } finally {
+            try {
+                br.close();
+                return true;
+            } catch (IOException ex) {
+                return false;
+            }
         }
-        return true;
+    }
+    private boolean loadLog(){
+        BufferedReader br = null;
+        try {
+            br = new BufferedReader(new FileReader(logFile));
+            StringBuilder sb = new StringBuilder();
+            String line = br.readLine();
+            while(line != null){
+                // split the line
+                
+                // get ARRIVAL_TIME
+                
+                // compute SERVICE_START_TIME and SERVICE_FINISH_TIME
+                
+                // append the new record to the sb
+                sb.append(line);
+                sb.append(System.lineSeparator());
+                line = br.readLine();
+            }
+            // save the sb to a new file
+            
+            return true;
+        } catch (Exception ex) {
+            return false;
+        } finally {
+            try {
+                br.close();
+                return true;
+            } catch (IOException ex) {
+                return false;
+            }
+        }
     }
     
     @Override
@@ -64,14 +154,17 @@ public class BankBranchAgent extends Agent{
         // receive manifest file path through command line arguments
         Object[] args = getArguments();
         if (args != null && args.length > 0) {
-            manifestFile = (String) args[0];
+            manifestFile = "C:\\Users\\Abdelrahman\\Downloads\\Bank Operation\\b1.json";
+            logFile = "C:\\Users\\Abdelrahman\\Downloads\\Bank Operation\\log-headquarter.csv";
+            // manifestFile = (String) args[0];
+            // logFile = (String) args[1];
             if(loadManifest()){
-                System.out.println("Hello! Branch " + branchID + " is ready.");
+                System.out.println("Branch " + branchID + " is ready.");
             }else {
                 System.err.println("Manifest file error!");
             }
         } else {
-            System.err.println("Bank branch manifest path is not passed!");
+            System.err.println("Missing manifest or log file path!");
             doDelete();
         }
         
@@ -81,6 +174,8 @@ public class BankBranchAgent extends Agent{
     }
     @Override
     protected void takeDown(){
-        System.out.println("Hello! Branch " + branchID + " is terminating.");
+        if(branchID != null){
+            System.out.println("Branch " + branchID + " is terminating.");
+        }
     }
 }

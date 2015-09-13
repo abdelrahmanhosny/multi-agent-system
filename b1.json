@@ -1,0 +1,25 @@
+{
+	"branchID": "b1",
+	"branchSize": "headquarter",
+	"services": ["deposit", "withdraw", "balance", "checks", "open", "transfer", "atm", "wire", "loan"],
+	"desks": [
+	{
+		"deskID": "d1",
+		"numderOfDesks": "5",
+		"costPerDesk": "200",
+		"averageProcessingTime": "3"
+	},
+	{
+		"deskID": "d2",
+		"numderOfDesks": "5",
+		"costPerDesk": "100",
+		"averageProcessingTime": "8"
+	},
+	{
+		"deskID": "d3",
+		"numderOfDesks": "5",
+		"costPerDesk": "50",
+		"averageProcessingTime": "12"
+	}
+	]
+}
