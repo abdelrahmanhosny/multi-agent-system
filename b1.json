@@ -5,19 +5,19 @@
 	"desks": [
 	{
 		"deskID": "d1",
-		"numderOfDesks": "5",
+		"numderOfDesks": "2",
 		"costPerDesk": "200",
 		"averageProcessingTime": "3"
 	},
 	{
 		"deskID": "d2",
-		"numderOfDesks": "5",
+		"numderOfDesks": "2",
 		"costPerDesk": "100",
 		"averageProcessingTime": "8"
 	},
 	{
 		"deskID": "d3",
-		"numderOfDesks": "5",
+		"numderOfDesks": "2",
 		"costPerDesk": "50",
 		"averageProcessingTime": "12"
 	}
