@@ -16,7 +16,9 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 package uconn.abdelrahman.master;
+import jade.core.AID;
 import jade.core.Agent;
+import jade.lang.acl.ACLMessage;
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -33,52 +35,7 @@ import org.json.*;
  * @author Abdelrahman
  */
 public class BankBranchAgent extends Agent{
-    private class Desk {
-        private final Calendar calendar = Calendar.getInstance();
-        private String deskID;
-        private float cost; // in $
-        private int averageProcessingTime; // in minutes
-        private Timestamp lastFinishTime;
-
-        public Desk(String deskID, float cost, int averageProcessingTime) {
-            this.deskID = deskID;
-            this.cost = cost;
-            this.averageProcessingTime = averageProcessingTime;
-            this.lastFinishTime = null;
-        }
-
-        @Override
-        public String toString() {
-            return "Desk{" + "deskID=" + deskID + ", cost=" + cost + ", averageProcessingTime=" + averageProcessingTime + '}';
-        }
-
-        public float getCost() {
-            return cost;
-        }
-        
-        // to check if this desk is currently free or not.
-        public boolean isFreeNow(Timestamp nowTime){
-            if(lastFinishTime == null) {
-                // desk never called.
-                return true;
-            } else if (nowTime.after(lastFinishTime)){
-                // client arrived after the desk finished the previous one
-                return true;
-            }
-            return false;
-        }
-        
-        // if the desk is not free, return when it will finish handling the current client
-        public Timestamp getLastFinishTime(){
-            return lastFinishTime;
-        }
-        
-        // assign a client to this desk and get the finish time
-        public Timestamp assign(Timestamp nowTime){
-            lastFinishTime = new Timestamp(nowTime.getTime() + averageProcessingTime*60*1000);
-            return lastFinishTime;
-        }
-    }
+    
     private String manifestFile;
     private String logFile;
     
@@ -86,29 +43,33 @@ public class BankBranchAgent extends Agent{
     private final String COMMA_DELIMITER = ",";
     private final String NEW_LINE_SEPARATOR = "\n";
     
-    private String branchID;
-    private String branchSize;
-    private JSONArray services;
-    private ArrayList<Desk> availableDesks;
+    private BankBranch myBranch;
+    private StringBuilder completeLog;
+
+    public BankBranch getMyBranch() {
+        return myBranch;
+    }
+
+
     private Timestamp[] getServiceInsights(Timestamp arrivalTime){
         Timestamp[] arr = new Timestamp[2]; // to represent the service start and finish times.
-        for(int i = 0;i<availableDesks.size(); i++){
+        for(int i = 0;i<myBranch.getAvailableDesks().size(); i++){
             // if the desk is free, assign it and get service finish time
-            if(availableDesks.get(i).isFreeNow(arrivalTime)){
+            if(myBranch.getAvailableDesks().get(i).isFreeNow(arrivalTime)){
                 arr[0] = arrivalTime;
-                arr[1] = availableDesks.get(i).assign(arrivalTime);
+                arr[1] = myBranch.getAvailableDesks().get(i).assign(arrivalTime);
                 return arr;
             }
         }
         // if reached here, that means no desks were free
         // get all finish times and select the nearest one and assign
-        Timestamp[] finishTimes = new Timestamp[availableDesks.size()];
-        for(int i = 0; i< availableDesks.size();i++){
-            finishTimes[i] = availableDesks.get(i).getLastFinishTime();
+        Timestamp[] finishTimes = new Timestamp[myBranch.getAvailableDesks().size()];
+        for(int i = 0; i< myBranch.getAvailableDesks().size();i++){
+            finishTimes[i] = myBranch.getAvailableDesks().get(i).getLastFinishTime();
         }
         int nearestAvailableDesk = nearestAvailableDesk(finishTimes);
-        arr[0] = availableDesks.get(nearestAvailableDesk).getLastFinishTime();
-        arr[1] = availableDesks.get(nearestAvailableDesk).assign(arr[0]);
+        arr[0] = myBranch.getAvailableDesks().get(nearestAvailableDesk).getLastFinishTime();
+        arr[1] = myBranch.getAvailableDesks().get(nearestAvailableDesk).assign(arr[0]);
         return arr;
     }
     private int nearestAvailableDesk(Timestamp[] arr){
@@ -135,12 +96,16 @@ public class BankBranchAgent extends Agent{
             }
             String jsonString = sb.toString();
             JSONObject manifest = new JSONObject(jsonString);
-            branchID = manifest.getString("branchID");
-            branchSize = manifest.getString("branchSize");
-            services = manifest.getJSONArray("services");
+            String branchID = manifest.getString("branchID");
+            String branchSize = manifest.getString("branchSize");
+            JSONArray arr = manifest.getJSONArray("services");
+            ArrayList<String> services = new ArrayList<>();
+            for(int i = 0;i<arr.length();i++){
+                services.add(arr.getString(i));
+            }
             
             JSONArray desks = manifest.getJSONArray("desks");
-            availableDesks = new ArrayList<>();
+            ArrayList<Desk> availableDesks = new ArrayList<>();
             for(int i = 0;i<desks.length(); i++){
                 JSONObject deskType = (JSONObject) desks.get(i);
                 int numberOfDesks = Integer.parseInt(deskType.getString("numderOfDesks"));
@@ -149,6 +114,7 @@ public class BankBranchAgent extends Agent{
                     availableDesks.add(temp);
                 }
             }
+            myBranch = new BankBranch(branchID, branchSize, services, availableDesks);
             
         } catch (Exception ex) {
             return false;
@@ -183,11 +149,9 @@ public class BankBranchAgent extends Agent{
                 sb.append(NEW_LINE_SEPARATOR);
                 line = br.readLine();
             }
-            // save the sb to a new file
-            FileWriter fr = new FileWriter( branchID + " processed.csv");
-            fr.write(sb.toString());
-            fr.flush();
-            fr.close();
+            // save the sb to the string builder
+            completeLog = new StringBuilder(sb);
+            
             return true;
         } catch (Exception ex) {
             return false;
@@ -206,14 +170,13 @@ public class BankBranchAgent extends Agent{
         // receive manifest file path through command line arguments
         Object[] args = getArguments();
         if (args != null && args.length > 0) {
-            manifestFile = "C:\\Users\\Abdelrahman\\Downloads\\Bank Operation\\b1.json";
-            logFile = "C:\\Users\\Abdelrahman\\Downloads\\Bank Operation\\log-headquarter.csv";
-            // manifestFile = (String) args[0];
-            // logFile = (String) args[1];
+            String[] arguments = ((String) args[0]).split(" ");
+            manifestFile = arguments[0];
+            logFile = arguments[1];
             if(loadManifest()){
-                System.out.println("Branch " + branchID + " is ready.");
+                System.out.println("Branch " + myBranch.getBranchID() + " is ready.");
                 if(loadLog()){
-                    System.out.println("Branch " + branchID + " has processed all clients ..");
+                    System.out.println("Branch " + myBranch.getBranchID() + " has processed all clients ..");
                 }
             }else {
                 System.err.println("Manifest file error!");
@@ -224,13 +187,15 @@ public class BankBranchAgent extends Agent{
         }
         
         // register to the recommender agent
+        addBehaviour(new RegisterBranchBehavior(myBranch));
         
         // send log file
+        addBehaviour(new SendLogBehavior(completeLog));
     }
     @Override
     protected void takeDown(){
-        if(branchID != null){
-            System.out.println("Branch " + branchID + " is terminating.");
+        if(myBranch.getBranchID() != null){
+            System.out.println("Branch " + myBranch.getBranchID() + " is terminating.");
         }
     }
 }
