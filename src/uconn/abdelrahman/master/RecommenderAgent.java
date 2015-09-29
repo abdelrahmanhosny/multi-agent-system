@@ -23,7 +23,9 @@ import jade.core.behaviours.CyclicBehaviour;
 import jade.lang.acl.ACLMessage;
 import jade.lang.acl.MessageTemplate;
 import jade.lang.acl.UnreadableException;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -33,7 +35,9 @@ import java.util.logging.Logger;
  */
 public class RecommenderAgent extends Agent {
 
-    private ArrayList<BankBranch> branches;
+    private final int ACCEPTABLE_AVERAGE_WAIT_TIME = 5; // in minutes
+    private HashMap<String, BankBranch> manifestMap;
+    private HashMap<String, String> lastRecommendationMap;
 
     private class ManifestServer extends CyclicBehaviour {
 
@@ -72,8 +76,10 @@ public class RecommenderAgent extends Agent {
             if (msg != null) {
                 // process the message
                 System.out.println(myAgent.getName() + ":recommender -> received message ..");
+                StringBuilder log = null;
                 try {
                     System.out.println(myAgent.getName() + ":recommender -> content: " + msg.getContentObject());
+                    log = (StringBuilder) msg.getContentObject();
                 } catch (UnreadableException ex) {
                     Logger.getLogger(ManifestServer.class.getName()).log(Level.SEVERE, null, ex);
                 }
@@ -82,30 +88,67 @@ public class RecommenderAgent extends Agent {
                 String branchName = sender.getName();
 
                 // analyze this log and suggest a new modified log
-                getNewRecommendedManifest();
+                if (log != null) {
+                    BankBranch newManifest = getNewRecommendedManifest(branchName, log);
+                    
+                    if(newManifest != null){
+                        // send new manifest to the branch agent
+                        ACLMessage reply = msg.createReply();
+                        reply.setPerformative(ACLMessage.PROPOSE);
+                        try {
+                            reply.setContentObject(newManifest);
+                        } catch (IOException ex) {
+                            Logger.getLogger(RecommenderAgent.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                        myAgent.send(reply);
+                    } else {
+                        // send success status to the branch agent to indicate that it's all utilized.
+                        ACLMessage reply = msg.createReply();
+                        reply.setPerformative(ACLMessage.CONFIRM);
+                        try {
+                            reply.setContentObject(newManifest);
+                        } catch (IOException ex) {
+                            Logger.getLogger(RecommenderAgent.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                        myAgent.send(reply);
+                    }
+                    
+                    
+                } else {
+                    // send fail status to the branch agent
+                    ACLMessage reply = msg.createReply();
+                    reply.setPerformative(ACLMessage.FAILURE);
+                    reply.setContent("cannot parse log correctly!");
+                    myAgent.send(reply);
+                }
 
-                // send success status to the branch agent
-                ACLMessage reply = msg.createReply();
-                reply.setPerformative(ACLMessage.CONFIRM);
-                reply.setContent("received log successfully");
-                myAgent.send(reply);
+                
             } else {
                 block();
             }
         }
     }
 
-    private void getNewRecommendedManifest() {
+    private BankBranch getNewRecommendedManifest(String branchName, StringBuilder log) {
+        // return a new manifest if there is modifications. null if the analysis is ok.
+        // analyze average waiting time
         
+        // if waiting time > ACCEPTABLE_AVERAGE_WAIT_TIME minutes, recommend increase
+        // if waiting time < ACCEPTABLE_AVERAGE_WAIT_TIME minutes, recommend decrease
+        // check last recommendation to make sure we don't get into a loop
+        
+        return null;
     }
 
     private void addBranch(BankBranch b) {
-        branches.add(b);
+        manifestMap.put(b.getBranchID(), b);
+        lastRecommendationMap.put(b.getBranchID(), "never");
     }
 
     @Override
     protected void setup() {
-        branches = new ArrayList<>();
+        manifestMap = new HashMap<String, BankBranch>();
+        lastRecommendationMap = new HashMap<String, String>();
         System.out.println(getName() + ":recommender agent -> started ..");
         addBehaviour(new ManifestServer());
         addBehaviour(new LogServer());
