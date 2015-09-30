@@ -70,4 +70,7 @@ public class Desk implements Serializable{
             lastFinishTime = new Timestamp(nowTime.getTime() + averageProcessingTime*60*1000);
             return lastFinishTime;
         }
+        public void reset(){
+            lastFinishTime = null;
+        }
     }

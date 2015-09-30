@@ -53,6 +53,13 @@ public class BankBranch implements Serializable{
     public ArrayList<Desk> getAvailableDesks() {
         return availableDesks;
     }
+    
+    public void addDesk(Desk d){
+        availableDesks.add(d);
+    }
+    public void removeDesk(){
+        availableDesks.remove(0);
+    }
 
     @Override
     public String toString() {
