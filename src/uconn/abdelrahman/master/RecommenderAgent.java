@@ -237,16 +237,14 @@ public class RecommenderAgent extends Agent {
         // do we have a branch that added a desk?
         ArrayList<String> branchesAddedADesk = new ArrayList<>();
         ArrayList<String> branchesRemovedADesk = new ArrayList<>();
-        ArrayList<String> branchesDidNothing = new ArrayList<>();
+
         Set keys = desksCountMap.keySet();
         Iterator iter = keys.iterator();
         while (iter.hasNext()) {
             String branchName = (String) iter.next();
             if (desksCountMap.get(branchName) > 0) {
                 branchesAddedADesk.add(branchName);
-            } else if (desksCountMap.get(branchName) == 0) {
-                branchesDidNothing.add(branchName);
-            } else {
+            } else if (desksCountMap.get(branchName) < 0) {
                 branchesRemovedADesk.add(branchName);
             }
         }
@@ -257,8 +255,24 @@ public class RecommenderAgent extends Agent {
                 System.out.println(":global recommender -> transfer from " + branchesRemovedADesk.get(j) + " to " + branchesAddedADesk.get(i));
             }
         }
-        
+
         // swap recommendation
+        iter = keys.iterator();
+        ArrayList<String> allBranches = new ArrayList<String>();
+        while (iter.hasNext()) {
+            String branchName = (String) iter.next();
+            allBranches.add(branchName);
+        }
+        for (int i = 0; i < allBranches.size(); i++) {
+            // if branch has a waiting time of zero
+            if(utilizedWaitTimeMap.get(allBranches.get(i)) < 0.001){
+                for (int j = 0; j < allBranches.size(); j++) {
+                    if(utilizedWaitTimeMap.get(allBranches.get(j)) >= 0.001){
+                        System.out.println(":global recommender -> swap between " + allBranches.get(i) + " and " + allBranches.get(j));
+                    }
+                }
+            }
+        }
     }
 
     @Override
