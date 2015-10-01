@@ -27,6 +27,8 @@ import java.io.IOException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -44,6 +46,8 @@ public class RecommenderAgent extends Agent {
     };
     private HashMap<String, BankBranch> manifestMap;
     private HashMap<String, LastRecommendationStatus> lastRecommendationMap;
+    private HashMap<String, Integer> desksCountMap;
+    private HashMap<String, Double> utilizedWaitTimeMap;
 
     private class ManifestServer extends CyclicBehaviour {
 
@@ -184,6 +188,9 @@ public class RecommenderAgent extends Agent {
             newManifest.addDesk(toBeAdded);
             manifestMap.put(branchName, newManifest);
             lastRecommendationMap.put(branchName, LastRecommendationStatus.INCREASE);
+            Integer desksCount = desksCountMap.get(branchName);
+            desksCount++;
+            desksCountMap.put(branchName, desksCount);
             System.out.println("recommender - > sending increase recommendation for " + branchName + " with new manifest ->\n" + newManifest);
             // return the new manifest
             return manifestMap.get(branchName);
@@ -192,7 +199,14 @@ public class RecommenderAgent extends Agent {
             if (lastRecommendationMap.get(branchName) == LastRecommendationStatus.INCREASE) {
                 // if last time we recommended increase, that means the average waiting time is just in the acceptable range
                 // it is the steady state
-                System.out.println("recommender - > reached steady state for " + branchName + " with the following manifest\n" + manifestMap.get(branchName));
+                System.out.println("recommender - > reached steady state for " + branchName + " with a utilized waiting time: " + averageWaitTime);
+
+                utilizedWaitTimeMap.put(branchName, averageWaitTime);
+
+                // if we have more than one branch in the system, try to provide global recoomendation
+                if (desksCountMap.size() > 1) {
+                    printGlobalRecommendation();
+                }
                 return null;
             } else {
                 // if the last time we recommended decrease, recommend another decrease.
@@ -202,6 +216,9 @@ public class RecommenderAgent extends Agent {
                 newManifest.removeDesk();
                 manifestMap.put(branchName, newManifest);
                 lastRecommendationMap.put(branchName, LastRecommendationStatus.DECREASE);
+                Integer desksCount = desksCountMap.get(branchName);
+                desksCount--;
+                desksCountMap.put(branchName, desksCount);
                 System.out.print(":recommender - > sending decrease recommendation for " + branchName + "\nNew manifest -> " + newManifest);
                 return manifestMap.get(branchName);
             }
@@ -211,19 +228,52 @@ public class RecommenderAgent extends Agent {
     private void addBranch(BankBranch b) {
         manifestMap.put(b.getBranchID(), b);
         lastRecommendationMap.put(b.getBranchID(), LastRecommendationStatus.NEVER);
+        desksCountMap.put(b.getBranchID(), 0);
+        utilizedWaitTimeMap.put(b.getBranchID(), -1.0);
+    }
+
+    private void printGlobalRecommendation() {
+        System.out.println(":recommender -> global recommender started analysis on " + desksCountMap.size() + " branches ..");
+        // do we have a branch that added a desk?
+        ArrayList<String> branchesAddedADesk = new ArrayList<>();
+        ArrayList<String> branchesRemovedADesk = new ArrayList<>();
+        ArrayList<String> branchesDidNothing = new ArrayList<>();
+        Set keys = desksCountMap.keySet();
+        Iterator iter = keys.iterator();
+        while (iter.hasNext()) {
+            String branchName = (String) iter.next();
+            if (desksCountMap.get(branchName) > 0) {
+                branchesAddedADesk.add(branchName);
+            } else if (desksCountMap.get(branchName) == 0) {
+                branchesDidNothing.add(branchName);
+            } else {
+                branchesRemovedADesk.add(branchName);
+            }
+        }
+
+        // transfer recommendation
+        for (int i = 0; i < branchesAddedADesk.size(); i++) {
+            for (int j = 0; j < branchesRemovedADesk.size(); j++) {
+                System.out.println(":global recommender -> transfer from " + branchesRemovedADesk.get(j) + " to " + branchesAddedADesk.get(i));
+            }
+        }
+        
+        // swap recommendation
     }
 
     @Override
     protected void setup() {
         manifestMap = new HashMap<String, BankBranch>();
         lastRecommendationMap = new HashMap<String, LastRecommendationStatus>();
-        System.out.println(getName() + ":recommender agent -> started ..");
+        desksCountMap = new HashMap<String, Integer>();
+        utilizedWaitTimeMap = new HashMap<String, Double>();
+        System.out.println(getLocalName() + ":recommender agent -> started ..");
         addBehaviour(new ManifestServer());
         addBehaviour(new LogServer());
     }
 
     @Override
     protected void takeDown() {
-        System.out.println(getName() + ":recommender agent -> shut down ..");
+        System.out.println(getLocalName() + ":recommender agent -> shut down ..");
     }
 }

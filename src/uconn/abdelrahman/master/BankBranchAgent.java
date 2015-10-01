@@ -273,7 +273,6 @@ public class BankBranchAgent extends Agent {
                 block();
             }
         }
-    
     }
 
     @Override
